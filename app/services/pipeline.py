@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.core.paths import LINKEDIN_PARSING_DIR, PDF_EXTRACTION_DIR, UPLOADS_DIR
 from app.models.schemas import JobSpec
 from app.services.vectorless_engine import run_role_fit
 
@@ -52,7 +53,7 @@ def _ensure_resume_parsed(
     if parsed_resume_path.exists():
         return json.loads(parsed_resume_path.read_text(encoding="utf-8"))
 
-    extraction_module_path = project_root / "pdf_extraction" / "extract_resume_pdf.py"
+    extraction_module_path = PDF_EXTRACTION_DIR / "extract_resume_pdf.py"
     module = _load_module_from_path(extraction_module_path, "extract_resume_pdf_module")
     extract_pdf = module.extract_pdf
     extracted = extract_pdf(resume_path)
@@ -80,12 +81,12 @@ def _ensure_linkedin_parsed(
     project_root: Path,
 ) -> Dict[str, Any]:
     slug = _slug_from_linkedin_url(linkedin_url)
-    output_dir = project_root / "linkedin_parsing" / "output"
+    output_dir = LINKEDIN_PARSING_DIR / "output"
     formatted_path = output_dir / f"{slug}_linkedin_parsed.json"
     if formatted_path.exists():
         return json.loads(formatted_path.read_text(encoding="utf-8"))
 
-    module_path = project_root / "linkedin_parsing" / "parse_linkedin_apify.py"
+    module_path = LINKEDIN_PARSING_DIR / "parse_linkedin_apify.py"
     module = _load_module_from_path(module_path, "parse_linkedin_apify_module")
     apify_token = os.getenv("APIFY_API_TOKEN")
     if not apify_token:
@@ -117,8 +118,8 @@ def process_candidate(
     role: JobSpec,
     project_root: Path,
 ) -> tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
-    parsed_dir = project_root / "pdf_extraction" / "output" / "parsed"
-    extraction_dir = project_root / "pdf_extraction" / "output"
+    parsed_dir = PDF_EXTRACTION_DIR / "output" / "parsed"
+    extraction_dir = PDF_EXTRACTION_DIR / "output"
     parsed_dir.mkdir(parents=True, exist_ok=True)
     extraction_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,8 +150,7 @@ def process_candidate(
 
 
 def save_uploaded_resume(src_temp_path: Path, filename: str, project_root: Path) -> Path:
-    target_dir = project_root / "backend" / "data" / "uploads"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / filename
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    target = UPLOADS_DIR / filename
     shutil.copy2(src_temp_path, target)
     return target

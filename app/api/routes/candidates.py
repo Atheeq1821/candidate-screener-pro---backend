@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from app.core.paths import PROJECT_ROOT, UPLOADS_DIR
 from app.core.deps import job_repo, run_repo
 from app.models.schemas import CandidateProcessResponse, CandidateRun
 from app.services.pipeline import process_candidate, save_uploaded_resume
@@ -21,7 +22,8 @@ async def process_candidate_endpoint(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    temp_path = Path("backend") / "data" / "uploads" / f"tmp_{uuid4().hex}_{resume.filename}"
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    temp_path = UPLOADS_DIR / f"tmp_{uuid4().hex}_{resume.filename}"
     temp_path.parent.mkdir(parents=True, exist_ok=True)
     content = await resume.read()
     temp_path.write_bytes(content)
@@ -40,9 +42,8 @@ async def process_candidate_endpoint(
     run_repo.create(run)
 
     try:
-        project_root = Path(__file__).resolve().parents[4]
-        saved_resume = save_uploaded_resume(temp_path, resume.filename, project_root)
-        resume_parsed, linkedin_parsed, analytics = process_candidate(saved_resume, linkedin_url, job, project_root)
+        saved_resume = save_uploaded_resume(temp_path, resume.filename, PROJECT_ROOT)
+        resume_parsed, linkedin_parsed, analytics = process_candidate(saved_resume, linkedin_url, job, PROJECT_ROOT)
         updated_payload = run.model_dump()
         updated_payload["status"] = "completed"
         updated_payload["updated_at"] = datetime.utcnow()
