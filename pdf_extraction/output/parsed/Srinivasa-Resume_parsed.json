@@ -1,0 +1,64 @@
+{
+  "name": "Srinivasa Sowmiyan",
+  "headline": "Backend Developer",
+  "about": "Backend Developer with 4 years of experience building and maintaining enterprise application using Java and Spring Boot.",
+  "contact": {
+    "email": "sowmiyan00@gmail.com",
+    "phone": "7200676611",
+    "linkedin": "linkedin.com/in/srinivasa-sowmiyan/",
+    "location": "TamilNadu"
+  },
+  "skills": [
+    "Java",
+    "Python",
+    "Groovy",
+    "SQL",
+    "Spring Boot",
+    "Spring Data JPA",
+    "Hibernate",
+    "Kafka",
+    "Docker",
+    "Kubernetes",
+    "Helm",
+    "AWS",
+    "MySQL",
+    "Elasticsearch",
+    "REST APIs",
+    "Microservices",
+    "Event-Driven Architecture"
+  ],
+  "experience": [
+    {
+      "title": "Associate Software Engineer",
+      "company": "CloudBees",
+      "start_date": "Mar 2024",
+      "end_date": "Apr 2026",
+      "description": "Designed and developed scalable backend components using Java and Spring Boot for an enterprise DevOps continuous delivery (CDRO) platform."
+    },
+    {
+      "title": "Software Engineer",
+      "company": "BUDDI AI",
+      "start_date": "Jun 2022",
+      "end_date": "Mar 2024",
+      "description": "Developed REST API for Elasticsearch-based search platform, enabling self-service medical records uploads by SMEs and eliminating manual indexing bottleneck for large-scale data onboarding."
+    },
+    {
+      "title": "Graduate Technical Intern",
+      "company": "Trimble",
+      "start_date": "Jan 2022",
+      "end_date": "Jun 2022",
+      "description": "Developed automated test scripts using Java and Selenium WebDriver, improving test coverage for new application features."
+    }
+  ],
+  "education": [
+    {
+      "degree": "B.Tech Information Technology",
+      "institution": "Thiagarajar College of Engineering",
+      "start_date": "2018",
+      "end_date": "2022",
+      "score": "GPA: 8.73"
+    }
+  ],
+  "certifications": [],
+  "projects": []
+}

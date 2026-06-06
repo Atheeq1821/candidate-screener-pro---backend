@@ -15,5 +15,11 @@ def chat(payload: ChatRequest) -> ChatResponse:
     if run.status != "completed" or not run.resume_parsed:
         raise HTTPException(status_code=400, detail="Run not ready for chat")
 
-    output = answer_question(payload.question, run.resume_parsed or {}, run.linkedin_parsed or {})
+    output = answer_question(
+        payload.question,
+        run.resume_parsed or {},
+        run.linkedin_parsed or {},
+        run_id=payload.run_id,
+        vectorless_rag=run.vectorless_rag,
+    )
     return ChatResponse(answer=output["answer"], evidence=output["evidence"])

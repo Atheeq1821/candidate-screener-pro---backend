@@ -54,6 +54,7 @@ class CandidateRun(BaseModel):
     fit_result: Optional[FitResult] = None
     resume_parsed: Optional[Dict[str, Any]] = None
     linkedin_parsed: Optional[Dict[str, Any]] = None
+    vectorless_rag: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 

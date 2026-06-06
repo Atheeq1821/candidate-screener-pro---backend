@@ -1,0 +1,227 @@
+{
+  "source": {
+    "provider": "linkdapi",
+    "requested_url": "https://www.linkedin.com/in/srinivasa-sowmiyan/"
+  },
+  "status": "ok",
+  "identity": {
+    "name": "Srinivasa Sowmiyan",
+    "headline": "Backend Engineer | Java, Spring, Microservices | Kafka | Kubernetes | AWS | Distributed Systems | Immediate Joiner",
+    "about": "Backend Engineer with ~4 years of experience working on scalable micro services and distributed systems using Java and Spring Boot.Worked on an enterprise DevOps Continuous Delivery platform at CloudBees, contributing to backend features, release orchestration workflows, production issue debugging, and platform performance improvements in large-scale enterprise environments. Experienced with containerized deployments using Docker and Kubernetes, along with AWS cloud services. Hands-on experience with CI/CD pipelines and observability tools such as Prometheus and Grafana. I\u2019m interested in backend engineering roles that involve distributed systems, system performance, and real-world problem solving.",
+    "linkedin_url": "https://www.linkedin.com/in/srinivasa-sowmiyan/",
+    "location": "Greater Chennai Area",
+    "current_company": "CloudBees"
+  },
+  "experience": [
+    {
+      "company": "CloudBees",
+      "company_url": "https://www.linkedin.com/company/cloudbees/",
+      "title": "Associate Software Engineer",
+      "location": "Chennai",
+      "start_date": {
+        "year": 2024,
+        "month": 3,
+        "day": 0
+      },
+      "end_date": {
+        "year": 2026,
+        "month": 4,
+        "day": 0
+      },
+      "description": "\u2022 Enchanced a Kubernetes-based auto-scaling service in Java for dynamic agent provisioning, supporting 10K+ daily pipelines and reducing manual provisioning from 4000+ to 2000+ in a large-scale enterprise environment.\n\u2022 Implemented real-time log streaming service using SSE with tail-like file reading and connection lifecycle management, replacing the legacy PHP module.\n\u2022 Strengthened application security by resolving Snyk-identified vulnerabilities (XSS, CSRF, command injection) across multiple microservices, reducing security findings by over 40%.\n\u2022 Upgraded CD core service runtime from Java 17 to Java 21, resolving breaking changes and ensuring alignment with security and CVE compliance requirements.\n\u2022 Enabled TLS-secured database connectivity across PostgreSQL, MySQL, and Oracle, and validated performance impact through performance tests integrated into CI pipelines.\n\u2022 Diagnosed and resolved critical production issues, including race conditions and performance bottlenecks, through query optimization and indexing to restore system stability.\n\u2022 Reduced test flakiness in internal release pipelines, lowering retry rates from 70% to 30% and reducing compute costs through collaborative root cause analysis and targeted fixes",
+      "employment_type": "Full-time",
+      "is_current": false
+    },
+    {
+      "company": "BUDDI AI",
+      "company_url": "https://www.linkedin.com/company/claritrics/",
+      "title": "Software Development Engineer",
+      "location": "Chennai",
+      "start_date": {
+        "year": 2022,
+        "month": 10,
+        "day": 0
+      },
+      "end_date": {
+        "year": 2024,
+        "month": 3,
+        "day": 0
+      },
+      "description": "\u2022  Introduced an event-driven workflow using Kafka to orchestrate existing microservices (OCR, PHI masking),\nenabling asynchronous, decoupled processing of thousands of documents per minute.\n\u2022 Improved performance of backend services by resolving Hibernate N+1 query issues and implementing batch fetching and payload optimization, reducing database load and enhancing API responsiveness.\n\u2022 Optimized Docker build pipeline using multi-stage builds, reducing image size by 50% and accelerating deployment time in Kubernetes-based environments.\n\u2022 Deployed and managed microservices using AWS ECS Fargate and EC2, enabling scalable containerized deployments with CloudWatch-based log monitoring.",
+      "employment_type": "Full-time",
+      "is_current": false
+    },
+    {
+      "company": "BUDDI AI",
+      "company_url": "https://www.linkedin.com/company/claritrics/",
+      "title": "Software Development Engineer - Trainee",
+      "location": "Chennai",
+      "start_date": {
+        "year": 2022,
+        "month": 7,
+        "day": 0
+      },
+      "end_date": {
+        "year": 2022,
+        "month": 9,
+        "day": 0
+      },
+      "description": "\u2022  Enhanced an internal Elasticsearch-based search platform by developing a Spring Boot REST API allowing SMEs\nto upload medical documents, supporting large-scale data onboarding across millions of records.\n\u2022 Independently developed various UI components in react tailored to specific design specifications, ensuring seamless integration with existing systems and enhancing user experience.\n\u2022 Engineered robust Python scripts using Beautiful Soup to accurately extract 15,000+ clinical codes from web source.",
+      "employment_type": "Internship",
+      "is_current": false
+    },
+    {
+      "company": "Trimble Inc.",
+      "company_url": "https://www.linkedin.com/company/trimble/",
+      "title": "Graduate Technical Intern",
+      "location": "Chennai",
+      "start_date": {
+        "year": 2022,
+        "month": 1,
+        "day": 0
+      },
+      "end_date": {
+        "year": 2022,
+        "month": 6,
+        "day": 0
+      },
+      "description": "\u2022 Developed automated test scripts using Java and Selenium WebDriver, improving test coverage for new application features.\n\u2022 Documented and executed 100+ manual test cases in TestRail, identifying defects and improving feature reliability in an Agile environment.",
+      "employment_type": "Internship",
+      "is_current": false
+    },
+    {
+      "company": "Conscript HR Advisors Pvt Ltd",
+      "company_url": "",
+      "title": "Python Developer ",
+      "location": "",
+      "start_date": {
+        "year": 2021,
+        "month": 12,
+        "day": 0
+      },
+      "end_date": {
+        "year": 2022,
+        "month": 1,
+        "day": 0
+      },
+      "description": "\u2022 Collaborated with the client extensively on an application to solve hiring challenges post offers to the candidates.\n\u2022 Designed appropriate database schema\n\u2022 Utilized materialize CSS for building a responsive web layout and SendGrid APIs\n\u2022 Developed business logic using Django and used pandas library for the manipulation of excel sheets\n\u2022 Deployed the site using python anywhere",
+      "employment_type": "Internship",
+      "is_current": false
+    }
+  ],
+  "education": [
+    {
+      "school": "Thiagarajar College of Engineering",
+      "school_url": "",
+      "degree": "B.tech ",
+      "field_of_study": "Information Technology",
+      "start_date": "",
+      "end_date": "",
+      "grade": "8.93",
+      "description": ""
+    },
+    {
+      "school": "Sri Jayendra Matric Higher Secondary School",
+      "school_url": "",
+      "degree": "Higher Secondary Education",
+      "field_of_study": "",
+      "start_date": "",
+      "end_date": "",
+      "grade": "96.16 %",
+      "description": ""
+    }
+  ],
+  "skills": [
+    "Automated Software Testing",
+    "Elasticsearch",
+    "Docker",
+    "Amazon Web Services (AWS)",
+    "Hibernate",
+    "Apache Kafka",
+    "Microservices",
+    "Jakarta Messaging API",
+    "Kubernetes",
+    "Spring Boot",
+    "RDBMS",
+    "Spring Framework",
+    "Java",
+    "Webpack",
+    "Algorithms",
+    "API Development",
+    "Tailwind CSS",
+    "TypeScript",
+    "Debugging",
+    "Redux.js"
+  ],
+  "certifications": [
+    {
+      "name": "Complete Guide to Apache Kafka for Beginners",
+      "issuer": "LinkedIn",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Ultimate Kubernetes Fast-Track Beginner to Advanced",
+      "issuer": "Udemy",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Java Message Service - JMS Fundamentals",
+      "issuer": "Udemy",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "CloudBees CD/RO Essentials",
+      "issuer": "CloudBees",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Rest API (Intermediate) Certificate",
+      "issuer": "HackerRank",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Problem Solving (Basic) Certificate",
+      "issuer": "HackerRank",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Build An MP3 Player With Python And TKinter GUI Apps",
+      "issuer": "Udemy",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "Git Going Fast: One Hour Git Crash Course",
+      "issuer": "Udemy",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    },
+    {
+      "name": "SDLC Security - 1 - Core Concepts",
+      "issuer": "SecureFlag",
+      "issue_date": "",
+      "expiry_date": "",
+      "url": ""
+    }
+  ],
+  "projects": [],
+  "meta": {
+    "urn": "ACoAACh4GOYBj9Ogl5D0_oGTA9Eu1cT5HmQysTM",
+    "connections": 807,
+    "followers": 807
+  }
+}

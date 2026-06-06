@@ -2,11 +2,13 @@ import argparse
 import json
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
+
+from app.services.groq_client import get_groq_client
 
 
 @dataclass
@@ -26,6 +28,21 @@ class ExtractionResult:
     section_slices: Dict[str, str]
     diagnostics: Dict[str, str]
 
+
+SECTION_HEADERS = [
+    "summary",
+    "profile",
+    "about",
+    "skills",
+    "technical skills",
+    "experience",
+    "work experience",
+    "employment",
+    "education",
+    "projects",
+    "certifications",
+    "achievements",
+]
 
 SECTION_ALIASES = {
     "summary": "summary",
@@ -51,7 +68,7 @@ def _normalize_header(value: str) -> str:
 
 
 def _extract_with_pymupdf(pdf_path: Path) -> Tuple[List[PageText], str]:
-    import fitz
+    import fitz  # PyMuPDF
 
     doc = fitz.open(pdf_path)
     pages: List[PageText] = []
@@ -93,7 +110,7 @@ def _looks_scanned(pages: List[PageText]) -> bool:
 
 
 def _ocr_fallback(pdf_path: Path) -> Tuple[List[PageText], str]:
-    import fitz
+    import fitz  # PyMuPDF
     import pytesseract
     from PIL import Image, ImageEnhance, ImageFilter
 
@@ -101,11 +118,15 @@ def _ocr_fallback(pdf_path: Path) -> Tuple[List[PageText], str]:
     pages: List[PageText] = []
 
     for idx, page in enumerate(doc, start=1):
+        # Render at higher resolution for better OCR quality.
         pix = page.get_pixmap(dpi=300)
         image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+        # Lightweight preprocessing to improve OCR robustness.
         image = image.convert("L")
         image = image.filter(ImageFilter.MedianFilter(size=3))
         image = ImageEnhance.Contrast(image).enhance(1.8)
+
         text = pytesseract.image_to_string(image, config="--oem 3 --psm 6") or ""
         pages.append(PageText(page_number=idx, text=text.strip(), source="ocr_pytesseract"))
 
@@ -117,11 +138,91 @@ def _quality_score(text: str) -> int:
     if not text.strip():
         return 0
     score = len(text)
+    # Prefer extractions that preserve clear section markers and sentence structure.
     score += len(re.findall(r"\b(SUMMARY|EDUCATION|EXPERIENCE|PROJECTS|SKILLS)\b", text, flags=re.I)) * 120
     score += text.count(".") * 10
     score -= len(re.findall(r"[A-Z]{20,}", text)) * 30
     score -= len(re.findall(r"[A-Z]{4,}[A-Z]{4,}", text)) * 15
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    uppercase_lines = 0
+    for line in lines:
+        letters = [ch for ch in line if ch.isalpha()]
+        if letters and sum(1 for ch in letters if ch.isupper()) / len(letters) > 0.9:
+            uppercase_lines += 1
+    score -= uppercase_lines * 3
     return score
+
+
+def _parse_with_groq(raw_resume_text: str, model: str) -> Dict:
+    if not raw_resume_text.strip():
+        return {"error": "empty_resume_text"}
+
+    client = get_groq_client()
+    if client is None:
+        raise RuntimeError("Unable to create Groq client")
+
+    prompt_schema = {
+        "name": "",
+        "headline": "",
+        "about": "",
+        "contact": {
+            "email": "",
+            "phone": "",
+            "linkedin": "",
+            "location": "",
+        },
+        "skills": [],
+        "experience": [
+            {
+                "title": "",
+                "company": "",
+                "start_date": "",
+                "end_date": "",
+                "description": "",
+            }
+        ],
+        "education": [
+            {
+                "degree": "",
+                "institution": "",
+                "start_date": "",
+                "end_date": "",
+                "score": "",
+            }
+        ],
+        "certifications": [
+            {
+                "name": "",
+                "issuer": "",
+                "date": "",
+            }
+        ],
+        "projects": [
+            {
+                "name": "",
+                "description": "",
+                "tools": [],
+            }
+        ],
+    }
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": "You are a resume parser. Output only valid JSON."},
+            {
+                "role": "user",
+                "content": (
+                    "Parse this resume text into this JSON structure. "
+                    "Use empty string/array if unavailable. "
+                    f"Schema template: {json.dumps(prompt_schema)}\n\nResume text:\n{raw_resume_text}"
+                ),
+            },
+        ],
+    )
+    return json.loads(response.choices[0].message.content)
 
 
 def _segment_sections(text: str) -> Dict[str, str]:
@@ -141,7 +242,9 @@ def _segment_sections(text: str) -> Dict[str, str]:
             header_hits.append((idx, direct))
             continue
 
-        if len(normalized_line.split()) <= 8:
+        # Handle merged header lines like "EDUCATION TECHNICAL SKILLS".
+        words = normalized_line.split()
+        if len(words) <= 8:
             for cand in candidates:
                 if re.search(rf"\b{re.escape(cand)}\b", normalized_line):
                     header_hits.append((idx, SECTION_ALIASES[cand]))
@@ -149,6 +252,7 @@ def _segment_sections(text: str) -> Dict[str, str]:
     if not header_hits:
         return {"full_text": text}
 
+    # If too many headers are clustered at top with no content, skip brittle sectioning.
     early_hits = [hit for hit in header_hits if hit[0] <= 20]
     if len(early_hits) >= 4:
         return {"full_text": text}
@@ -165,26 +269,9 @@ def _segment_sections(text: str) -> Dict[str, str]:
         if content:
             existing = section_slices.get(header, "")
             section_slices[header] = f"{existing}\n{content}".strip() if existing else content
-    return section_slices or {"full_text": text}
-
-
-def _parse_with_groq(raw_resume_text: str, model: str) -> Dict:
-    from groq import Groq
-
-    if not raw_resume_text.strip():
-        return {"error": "empty_resume_text"}
-
-    client = Groq(api_key=os.getenv("GROQ_API"))
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": "You are a resume parser. Output only valid JSON."},
-            {"role": "user", "content": raw_resume_text},
-        ],
-    )
-    return json.loads(response.choices[0].message.content)
+    if not section_slices:
+        return {"full_text": text}
+    return section_slices
 
 
 def extract_pdf(pdf_path: Path) -> ExtractionResult:
@@ -207,6 +294,7 @@ def extract_pdf(pdf_path: Path) -> ExtractionResult:
                 best_score = score
         except Exception as exc:
             errors[name] = str(exc)
+            continue
 
     if not pages or not any(page.text for page in pages) or _looks_scanned(pages):
         try:
@@ -221,14 +309,19 @@ def extract_pdf(pdf_path: Path) -> ExtractionResult:
         except Exception as exc:
             errors["ocr_pytesseract"] = str(exc)
 
-    combined_text = "\n\n".join(f"[Page {page.page_number}]\n{page.text}" for page in pages if page.text).strip()
+    combined_text = "\n\n".join(
+        f"[Page {page.page_number}]\n{page.text}" for page in pages if page.text
+    ).strip()
     scanned = _looks_scanned(pages)
     section_slices = _segment_sections(combined_text) if combined_text else {"full_text": ""}
+
     diagnostics: Dict[str, str] = {}
     if errors:
         diagnostics["fallback_errors"] = json.dumps(errors)
     if scanned:
-        diagnostics["scan_hint"] = "This PDF may be scanned/image-only. OCR fallback was attempted."
+        diagnostics["scan_hint"] = (
+            "This PDF may be scanned/image-only. OCR fallback was attempted."
+        )
 
     return ExtractionResult(
         file_name=pdf_path.name,
@@ -241,30 +334,73 @@ def extract_pdf(pdf_path: Path) -> ExtractionResult:
     )
 
 
-def main() -> None:
-    load_dotenv(Path("pdf_extraction") / ".env")
-    parser = argparse.ArgumentParser(description="Resume PDF extractor with fallback chain.")
-    parser.add_argument("--input-dir", default=str(Path("test_files")))
-    parser.add_argument("--output-dir", default=str(Path("pdf_extraction") / "output"))
-    parser.add_argument("--use-groq", action="store_true")
-    parser.add_argument("--groq-model", default="llama-3.3-70b-versatile")
-    args = parser.parse_args()
-
-    input_dir = Path(args.input_dir).resolve()
-    output_dir = Path(args.output_dir).resolve()
+def run_batch(input_dir: Path, output_dir: Path, use_groq: bool, groq_model: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     parsed_dir = output_dir / "parsed"
-    if args.use_groq:
+    if use_groq:
         parsed_dir.mkdir(parents=True, exist_ok=True)
 
-    for pdf_path in sorted(input_dir.glob("*.pdf")):
+    pdf_files = sorted(input_dir.glob("*.pdf"))
+    if not pdf_files:
+        print(f"No PDF files found in: {input_dir}")
+        return
+
+    for pdf_path in pdf_files:
         result = extract_pdf(pdf_path)
         output_path = output_dir / f"{pdf_path.stem}.json"
         output_path.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=True), encoding="utf-8")
-        if args.use_groq:
-            parsed = _parse_with_groq(result.combined_text, args.groq_model)
-            parsed_path = parsed_dir / f"{pdf_path.stem}_parsed.json"
-            parsed_path.write_text(json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8")
+        print(f"Processed {pdf_path.name} -> {output_path.name} ({result.extractor_used})")
+
+        if use_groq:
+            try:
+                parsed = _parse_with_groq(result.combined_text, groq_model)
+                parsed_path = parsed_dir / f"{pdf_path.stem}_parsed.json"
+                parsed_path.write_text(json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8")
+                print(f"Groq parsed {pdf_path.name} -> parsed/{parsed_path.name}")
+            except Exception as exc:
+                print(f"Groq parse failed for {pdf_path.name}: {exc}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Resume PDF extractor with fallback chain.")
+    parser.add_argument(
+        "--input-dir",
+        default=str(Path("test_files")),
+        help="Directory containing resume PDFs to process.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=str(Path("pdf_extraction") / "output"),
+        help="Directory to write extraction JSON files.",
+    )
+    parser.add_argument(
+        "--use-groq",
+        action="store_true",
+        help="Enable Groq-based resume JSON parsing after text extraction.",
+    )
+    parser.add_argument(
+        "--groq-model",
+        default="llama-3.3-70b-versatile",
+        help="Groq model name for structured parsing.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    load_dotenv(Path("pdf_extraction") / ".env")
+    args = parse_args()
+    input_dir = Path(args.input_dir).resolve()
+    output_dir = Path(args.output_dir).resolve()
+
+    if args.use_groq and not os.getenv("GROQ_API"):
+        raise ValueError("GROQ_API not found. Set it in pdf_extraction/.env")
+
+    run_batch(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        use_groq=args.use_groq,
+        groq_model=args.groq_model,
+    )
 
 
 if __name__ == "__main__":

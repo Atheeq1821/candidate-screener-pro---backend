@@ -1,14 +1,17 @@
 import json
-import importlib.util
+import logging
 import os
 import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.core.paths import LINKEDIN_PARSING_DIR, PDF_EXTRACTION_DIR, UPLOADS_DIR
+from app.core.paths import LINKEDIN_PARSING_DIR, PDF_EXTRACTION_DIR, ROOT_LINKEDIN_PARSING_DIR, UPLOADS_DIR
 from app.models.schemas import JobSpec
+from app.parsers.extract_resume_pdf import extract_pdf, _parse_with_groq
+from app.parsers.parse_linkedin_linkdapi import parse_linkedin_profile
 from app.services.vectorless_engine import run_role_fit
+from app.services.vectorless_profile import build_vectorless_profile, persist_vectorless_profile
 
 
 def _slug_from_linkedin_url(url: str) -> str:
@@ -33,13 +36,9 @@ def _simple_resume_parse(extracted: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _load_module_from_path(module_path: Path, module_name: str):
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_resume_parsed(
@@ -53,27 +52,27 @@ def _ensure_resume_parsed(
     if parsed_resume_path.exists():
         return json.loads(parsed_resume_path.read_text(encoding="utf-8"))
 
-    extraction_module_path = PDF_EXTRACTION_DIR / "extract_resume_pdf.py"
-    module = _load_module_from_path(extraction_module_path, "extract_resume_pdf_module")
-    extract_pdf = module.extract_pdf
     extracted = extract_pdf(resume_path)
 
     extraction_json = extraction_dir / f"{resume_stem}.json"
     extraction_json.write_text(json.dumps(extracted.__dict__, indent=2, ensure_ascii=True), encoding="utf-8")
 
     groq_api = os.getenv("GROQ_API")
-    if groq_api and hasattr(module, "_parse_with_groq"):
+    if groq_api:
         try:
-            parsed = module._parse_with_groq(extracted.combined_text, "llama-3.3-70b-versatile")
-            parsed_resume_path.write_text(json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8")
+            parsed = _parse_with_groq(extracted.combined_text, "llama-3.3-70b-versatile")
+            # Only cache if Groq returned meaningful data (has name or experience)
+            if parsed.get("name") or parsed.get("experience") or parsed.get("education"):
+                parsed_resume_path.write_text(json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8")
             return parsed
-        except Exception:
-            # fall back to deterministic parser below
-            pass
+        except Exception as exc:
+            logger.warning("Groq parsing failed for %s: %s — falling back to simple parser", resume_path.name, exc)
+    else:
+        logger.warning("GROQ_API not set — using simple regex parser. Set GROQ_API in backend/.env for full parsing.")
 
-    parsed = _simple_resume_parse(extracted.__dict__)
-    parsed_resume_path.write_text(json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8")
-    return parsed
+    # Simple fallback — NOT cached so the next upload attempt retries Groq
+    return _simple_resume_parse(extracted.__dict__)
+
 
 
 def _ensure_linkedin_parsed(
@@ -81,35 +80,56 @@ def _ensure_linkedin_parsed(
     project_root: Path,
 ) -> Dict[str, Any]:
     slug = _slug_from_linkedin_url(linkedin_url)
-    output_dir = LINKEDIN_PARSING_DIR / "output"
-    formatted_path = output_dir / f"{slug}_linkedin_parsed.json"
-    if formatted_path.exists():
-        return json.loads(formatted_path.read_text(encoding="utf-8"))
+    backend_output_dir = LINKEDIN_PARSING_DIR / "output"
+    root_output_dir = ROOT_LINKEDIN_PARSING_DIR / "output"
 
-    module_path = LINKEDIN_PARSING_DIR / "parse_linkedin_apify.py"
-    module = _load_module_from_path(module_path, "parse_linkedin_apify_module")
-    apify_token = os.getenv("APIFY_API_TOKEN")
-    if not apify_token:
-        return {"identity": {"linkedin_url": linkedin_url}, "experience": [], "education": [], "skills": [], "certifications": [], "projects": []}
+    # 1. Backend cache (written by this service on previous successful runs)
+    backend_path = backend_output_dir / f"{slug}_linkedin_parsed.json"
+    if backend_path.exists():
+        logger.info("[LinkedIn] Cache hit (backend) — %s", backend_path)
+        return json.loads(backend_path.read_text(encoding="utf-8"))
 
-    actor_id = os.getenv("APIFY_LINKEDIN_ACTOR_ID", "supreme_coder/linkedin-profile-scraper")
-    proxy_country = os.getenv("APIFY_PROXY_COUNTRY", "US")
-    linkedin_cookie = os.getenv("LINKEDIN_COOKIE")
+    # 2. Root standalone-script cache (scraped by linkedin_parsing/parse_linkedin_apify.py CLI)
+    root_path = root_output_dir / f"{slug}_linkedin_parsed.json"
+    if root_path.exists():
+        logger.info("[LinkedIn] Cache hit (root/standalone) — %s", root_path)
+        data = json.loads(root_path.read_text(encoding="utf-8"))
+        # Promote to backend cache so future lookups stay local
+        backend_output_dir.mkdir(parents=True, exist_ok=True)
+        backend_path.write_text(json.dumps(data, indent=2, ensure_ascii=True), encoding="utf-8")
+        logger.info("[LinkedIn] Promoted root cache → backend cache: %s", backend_path)
+        return data
+
+    # 3. Live Apify call
+    logger.info("[LinkedIn] No cache found for slug=%r — calling Apify", slug)
+
+    linkdapi_key = (
+        os.getenv("LINKDAPI_KEY")
+        or os.getenv("LinkdAPI_KEY")
+        or os.getenv("LINKDAPI_API_KEY")
+    )
+    if not linkdapi_key:
+        raise ValueError("LINKDAPI_KEY not set — cannot parse LinkedIn profile")
+
     try:
-        output_paths = module.parse_linkedin_profile(
+        output_paths = parse_linkedin_profile(
             linkedin_url=linkedin_url,
-            output_dir=output_dir,
-            actor_id=actor_id,
-            token=apify_token,
-            poll_interval_seconds=5,
-            timeout_seconds=240,
-            linkedin_cookie=linkedin_cookie,
-            proxy_country=proxy_country,
+            output_dir=backend_output_dir,
+            token=linkdapi_key,
+            timeout_seconds=30,
         )
         formatted = output_paths["formatted"]
-        return json.loads(Path(formatted).read_text(encoding="utf-8"))
-    except Exception:
+        if Path(formatted).exists():
+            logger.info("[LinkedIn] LinkdAPI parse successful — reading %s", formatted)
+            return json.loads(Path(formatted).read_text(encoding="utf-8"))
+        else:
+            logger.warning("[LinkedIn] LinkdAPI returned no cacheable content for %s", linkedin_url)
+            return {"identity": {"linkedin_url": linkedin_url}, "experience": [], "education": [], "skills": [], "certifications": [], "projects": []}
+    except Exception as exc:
+        logger.error("[LinkedIn] LinkdAPI parse failed for %s: %s", linkedin_url, exc)
         return {"identity": {"linkedin_url": linkedin_url}, "experience": [], "education": [], "skills": [], "certifications": [], "projects": []}
+
+
 
 
 def process_candidate(
@@ -117,6 +137,7 @@ def process_candidate(
     linkedin_url: Optional[str],
     role: JobSpec,
     project_root: Path,
+    run_id: Optional[str] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     parsed_dir = PDF_EXTRACTION_DIR / "output" / "parsed"
     extraction_dir = PDF_EXTRACTION_DIR / "output"
@@ -129,9 +150,13 @@ def process_candidate(
     if linkedin_url:
         linkedin_parsed = _ensure_linkedin_parsed(linkedin_url, project_root)
 
+    vectorless_rag = build_vectorless_profile(resume_parsed, linkedin_parsed)
+    vectorless_rag_path = persist_vectorless_profile(run_id or resume_path.stem, vectorless_rag)
     fit_result, chunks = run_role_fit(role, resume_parsed, linkedin_parsed)
     analytics = {
         "fit_result": fit_result.model_dump(),
+        "vectorless_rag": vectorless_rag,
+        "vectorless_rag_path": str(vectorless_rag_path),
         "charts": {
             "scores": [
                 {"name": "Overall", "value": fit_result.overall_score},

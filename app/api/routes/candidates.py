@@ -43,13 +43,20 @@ async def process_candidate_endpoint(
 
     try:
         saved_resume = save_uploaded_resume(temp_path, resume.filename, PROJECT_ROOT)
-        resume_parsed, linkedin_parsed, analytics = process_candidate(saved_resume, linkedin_url, job, PROJECT_ROOT)
+        resume_parsed, linkedin_parsed, analytics = process_candidate(
+            saved_resume,
+            linkedin_url,
+            job,
+            PROJECT_ROOT,
+            run_id=run_id,
+        )
         updated_payload = run.model_dump()
         updated_payload["status"] = "completed"
         updated_payload["updated_at"] = datetime.utcnow()
         updated_payload["fit_result"] = analytics["fit_result"]
         updated_payload["resume_parsed"] = resume_parsed
         updated_payload["linkedin_parsed"] = linkedin_parsed
+        updated_payload["vectorless_rag"] = analytics.get("vectorless_rag")
         updated = CandidateRun(**updated_payload)
         run_repo.update(run_id, updated)
     except Exception as exc:
